@@ -1,8 +1,6 @@
 ﻿using System.Data.SqlClient;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Net.Http.Headers;
 using WebApplication.DTOs;
-using WebApplication.Models;
 
 namespace WebApplication.Controllers;
 
@@ -10,37 +8,53 @@ namespace WebApplication.Controllers;
 [Route("/api/animals")]
 public class AnimalsController : ControllerBase
 {
-    private IConfiguration _configuration;
+    private readonly IConfiguration _configuration;
 
     public AnimalsController(IConfiguration configuration)
     {
         _configuration = configuration;
     }
 
-    public ActionResult<IEnumerable<AnimalDTO>> GetAnimals()
+    [HttpGet]
+    public ActionResult<IEnumerable<AnimalDTO>> GetAnimals([FromQuery] string orderBy = "name")
     {
+        if (!ValidateOrderByParameter(orderBy))
+        {
+            return BadRequest("Nieprawidłowa wartość parametru orderBy.");
+        }
+
         var sqlConnection = new SqlConnection(_configuration.GetConnectionString("Default"));
         var sqlCommand = new SqlCommand();
-        
+
         sqlCommand.Connection = sqlConnection;
-        sqlCommand.CommandText = "SELECT * FROM Animals";
-        
+        sqlCommand.CommandText = $"SELECT * FROM Animals ORDER BY {orderBy} ASC";
+
         sqlConnection.Open();
 
         var sqlData = sqlCommand.ExecuteReader();
-        var animals = new List<Animal>();
+        var animals = new List<AnimalDTO>();
 
         while (sqlData.Read())
         {
-            animals.Add(new Animal(
-                (int) sqlData["id"],
-                (string) sqlData["name"],
-                (string) sqlData["description"],
-                (string) sqlData["category"],
-                (string) sqlData["area"])
-            );
+            animals.Add(new AnimalDTO
+            {
+                Id = (int)sqlData["id"],
+                Name = (string)sqlData["name"],
+                Description = (string)sqlData["description"],
+                Category = (string)sqlData["category"],
+                Area = (string)sqlData["area"]
+            });
         }
-        
-        return Ok();
+
+        return Ok(animals);
+    }
+    
+    private bool ValidateOrderByParameter(string orderBy)
+    {
+        return orderBy.ToLowerInvariant() switch
+        {
+            "name" or "description" or "category" or "area" => true,
+            _ => false
+        };
     }
 }
