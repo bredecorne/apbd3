@@ -47,7 +47,7 @@ public class AnimalsController : ControllerBase
         using var sqlCommand = new MySqlCommand(
             $"INSERT INTO Animals (Id, Name, Description, Category, Area) VALUES (@id, @name, @description, @category, @area)", 
             sqlConnection);
-            
+        
         sqlCommand.Parameters.AddWithValue("@id", newAnimal.Id);
         sqlCommand.Parameters.AddWithValue("@name", newAnimal.Name);
         sqlCommand.Parameters.AddWithValue("@description", newAnimal.Description);
@@ -59,6 +59,56 @@ public class AnimalsController : ControllerBase
 
         return CreatedAtAction(nameof(GetAnimals), new { id = newAnimal.Id }, newAnimal); 
     }
+    
+    [HttpPut("{id}")]
+    public IActionResult UpdateAnimal(int id, [FromBody] Animal updatedAnimal)
+    {
+        var sqlConnection = new MySqlConnection(_configuration.GetConnectionString("Default"));
+        using var sqlCommand = new MySqlCommand($"SELECT * FROM Animals WHERE Id = @id", sqlConnection);
+        sqlCommand.Parameters.AddWithValue("@id", id);
+
+        sqlConnection.Open();
+        var reader = sqlCommand.ExecuteReader();
+        if (!reader.HasRows)
+        {
+            return NotFound();
+        }
+        reader.Close();
+
+        using var updateCommand = new MySqlCommand(
+            $"UPDATE Animals SET Name = @name, Description = @description, Category = @category, Area = @area WHERE Id = @id", 
+            sqlConnection);
+
+        updateCommand.Parameters.AddWithValue("@id", id);
+        updateCommand.Parameters.AddWithValue("@name", updatedAnimal.Name);
+        updateCommand.Parameters.AddWithValue("@description", updatedAnimal.Description);
+        updateCommand.Parameters.AddWithValue("@category", updatedAnimal.Category);
+        updateCommand.Parameters.AddWithValue("@area", updatedAnimal.Area);
+
+        updateCommand.ExecuteNonQuery();
+
+        return NoContent(); 
+    }
+    
+    [HttpDelete("{id}")]
+    public IActionResult DeleteAnimal(int id)
+    {
+        var sqlConnection = new MySqlConnection(_configuration.GetConnectionString("Default"));
+        using var sqlCommand = new MySqlCommand($"DELETE FROM Animals WHERE Id = @id", sqlConnection);
+        sqlCommand.Parameters.AddWithValue("@id", id);
+
+        sqlConnection.Open();
+        var rowsAffected = sqlCommand.ExecuteNonQuery();
+
+        if (rowsAffected == 0)
+        { 
+            return NotFound();
+        }
+
+        return NoContent();
+    }
+
+
 
     private bool ValidateOrderByParameter(string orderBy)
     {
