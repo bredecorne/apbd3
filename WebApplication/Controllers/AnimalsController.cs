@@ -1,6 +1,6 @@
-﻿using System.Data.SqlClient;
-using Microsoft.AspNetCore.Mvc;
-using WebApplication.DTOs;
+﻿using Microsoft.AspNetCore.Mvc;
+using MySqlConnector;
+using WebApplication.Models;
 
 namespace WebApplication.Controllers;
 
@@ -16,39 +16,50 @@ public class AnimalsController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IEnumerable<AnimalDTO>> GetAnimals([FromQuery] string orderBy = "name")
+    public ActionResult<IEnumerable<Animal>> GetAnimals([FromQuery] string orderBy = "name")
     {
-        if (!ValidateOrderByParameter(orderBy))
-        {
-            return BadRequest("Nieprawidłowa wartość parametru orderBy.");
-        }
+        if (!ValidateOrderByParameter(orderBy)) return BadRequest("Incorrect orderBy parameter.");
 
-        var sqlConnection = new SqlConnection(_configuration.GetConnectionString("Default"));
-        var sqlCommand = new SqlCommand();
-
-        sqlCommand.Connection = sqlConnection;
-        sqlCommand.CommandText = $"SELECT * FROM Animals ORDER BY {orderBy} ASC";
+        var sqlConnection = new MySqlConnection(_configuration.GetConnectionString("Default"));
+        var sqlCommand = new MySqlCommand($"SELECT * FROM Animals ORDER BY {orderBy}", sqlConnection);
 
         sqlConnection.Open();
 
         var sqlData = sqlCommand.ExecuteReader();
-        var animals = new List<AnimalDTO>();
+        var animals = new List<Animal>();
 
         while (sqlData.Read())
-        {
-            animals.Add(new AnimalDTO
-            {
-                Id = (int)sqlData["id"],
-                Name = (string)sqlData["name"],
-                Description = (string)sqlData["description"],
-                Category = (string)sqlData["category"],
-                Area = (string)sqlData["area"]
-            });
-        }
+            animals.Add(new Animal(
+                (int)sqlData["id"],
+                (string)sqlData["name"],
+                (string)sqlData["description"],
+                (string)sqlData["category"],
+                (string)sqlData["area"]
+            ));
 
         return Ok(animals);
     }
     
+    [HttpPost] 
+    public IActionResult AddAnimal([FromBody] Animal newAnimal)
+    {
+        var sqlConnection = new MySqlConnection(_configuration.GetConnectionString("Default"));
+        using var sqlCommand = new MySqlCommand(
+            $"INSERT INTO Animals (Id, Name, Description, Category, Area) VALUES (@id, @name, @description, @category, @area)", 
+            sqlConnection);
+            
+        sqlCommand.Parameters.AddWithValue("@id", newAnimal.Id);
+        sqlCommand.Parameters.AddWithValue("@name", newAnimal.Name);
+        sqlCommand.Parameters.AddWithValue("@description", newAnimal.Description);
+        sqlCommand.Parameters.AddWithValue("@category", newAnimal.Category);
+        sqlCommand.Parameters.AddWithValue("@area", newAnimal.Area);
+        
+        sqlConnection.Open();
+        sqlCommand.ExecuteNonQuery();
+
+        return CreatedAtAction(nameof(GetAnimals), new { id = newAnimal.Id }, newAnimal); 
+    }
+
     private bool ValidateOrderByParameter(string orderBy)
     {
         return orderBy.ToLowerInvariant() switch
